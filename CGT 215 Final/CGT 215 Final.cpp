@@ -2,10 +2,29 @@
 //
 
 #include <iostream>
+#include "SFML/Graphics.hpp"
+#include "SFPhysics.h"
+using namespace std;
+using namespace sf;
+using namespace sfp;
 
 int main()
 {
-    std::cout << "Hello World!\n";
+    cout << "Hello World!\n";
+	
+	RenderWindow window(VideoMode(800, 600), "CGT 215 Final Project");
+	World world(Vector2f(0, 1.0));
+	CircleShape ball;
+	ball.setPosition(400, 300);
+	ball.setRadius(30);
+	RectangleShape floor;
+	floor.setSize(Vector2f(800, 10));
+	floor.setPosition(0, 590);
+	window.clear();
+	window.draw(ball);
+	window.draw(floor);
+	window.display();
+	while (true);
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
