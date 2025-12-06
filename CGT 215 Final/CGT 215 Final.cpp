@@ -8,23 +8,46 @@ using namespace std;
 using namespace sf;
 using namespace sfp;
 
+void bounce(PhysicsBodyCollisionResult result) 
+{
+	cout << "Bounce!" << endl;
+}
+
 int main()
 {
-    cout << "Hello World!\n";
-	
 	RenderWindow window(VideoMode(800, 600), "CGT 215 Final Project");
 	World world(Vector2f(0, 1.0));
-	CircleShape ball;
-	ball.setPosition(400, 300);
+	PhysicsCircle ball;
+	ball.setCenter(Vector2f(400, 300));
 	ball.setRadius(30);
-	RectangleShape floor;
+	world.AddPhysicsBody(ball);
+
+	PhysicsRectangle floor;
 	floor.setSize(Vector2f(800, 10));
-	floor.setPosition(0, 590);
-	window.clear();
-	window.draw(ball);
-	window.draw(floor);
-	window.display();
-	while (true);
+	floor.setCenter(Vector2f(400, 590));
+	floor.setStatic(true);
+	int bounceCount(0);
+	floor.onCollision = [&bounceCount](PhysicsBodyCollisionResult result) {
+		bounceCount++;
+		cout << "Bounce " << bounceCount << endl;
+	};
+	
+	world.AddPhysicsBody(floor);
+	Clock clock;
+	Time lastTime = clock.getElapsedTime();
+	while (true) {
+		Time currentTime(clock.getElapsedTime());
+		Time deltaTime = currentTime - lastTime;
+		int deltaTimeMS(deltaTime.asMilliseconds());
+		if (deltaTimeMS > 5) {
+			world.UpdatePhysics(deltaTimeMS);
+			lastTime = currentTime;
+		}
+		window.clear();
+		window.draw(ball);
+		window.draw(floor);
+		window.display();
+	}
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
