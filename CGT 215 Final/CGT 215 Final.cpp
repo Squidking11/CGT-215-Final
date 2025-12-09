@@ -4,6 +4,7 @@
 #include <iostream>
 #include "SFML/Graphics.hpp"
 #include "SFPhysics.h"
+#include <Windows.h>
 using namespace std;
 using namespace sf;
 using namespace sfp;
@@ -13,14 +14,35 @@ void bounce(PhysicsBodyCollisionResult result)
 	cout << "Bounce!" << endl;
 }
 
+void DoInput(PhysicsSprite& ship) {
+	if (Keyboard::isKeyPressed(Keyboard::Right)) {
+		ship.applyImpulse(Vector2f(.0005, 0));
+	}
+	if (Keyboard::isKeyPressed(Keyboard::Left)) {
+		ship.applyImpulse(Vector2f(-.0005, 0));
+	}
+	
+}
+
 int main()
 {
+	char cwd[MAX_PATH];
+	GetCurrentDirectoryA(MAX_PATH, cwd);
+	cout << "Working directory: " << cwd << endl;
 	RenderWindow window(VideoMode(800, 600), "CGT 215 Final Project");
 	World world(Vector2f(0, 1.0));
-	PhysicsCircle ball;
-	ball.setCenter(Vector2f(400, 300));
-	ball.setRadius(30);
-	world.AddPhysicsBody(ball);
+	//PhysicsCircle ball;
+	PhysicsSprite ship;
+	Texture tex;
+	if (!tex.loadFromFile("SpaceShip.png")) {
+		cout << "Failed to load texture" << endl;
+	}
+	ship.setTexture(tex);
+	ship.setCenter(Vector2f(400, 300));
+	world.AddPhysicsBody(ship);
+	//ball.setCenter(Vector2f(400, 300));
+	//ball.setRadius(30);
+	//world.AddPhysicsBody(ball);
 
 	PhysicsRectangle floor;
 	floor.setSize(Vector2f(800, 10));
@@ -39,14 +61,17 @@ int main()
 		Time currentTime(clock.getElapsedTime());
 		Time deltaTime = currentTime - lastTime;
 		int deltaTimeMS(deltaTime.asMilliseconds());
-		if (deltaTimeMS > 5) {
+		if (deltaTimeMS > 0) {
 			world.UpdatePhysics(deltaTimeMS);
 			lastTime = currentTime;
+			DoInput(ship);
 		}
 		window.clear();
-		window.draw(ball);
+		window.draw(ship);
 		window.draw(floor);
+		world.VisualizeAllBounds(window);
 		window.display();
+
 	}
 }
 
