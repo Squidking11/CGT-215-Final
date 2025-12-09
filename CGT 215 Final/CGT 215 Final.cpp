@@ -26,9 +26,9 @@ void DoInput(PhysicsSprite& ship) {
 
 int main()
 {
-	char cwd[MAX_PATH];
+	/*char cwd[MAX_PATH];
 	GetCurrentDirectoryA(MAX_PATH, cwd);
-	cout << "Working directory: " << cwd << endl;
+	cout << "Working directory: " << cwd << endl;*/
 	RenderWindow window(VideoMode(800, 600), "CGT 215 Final Project");
 	World world(Vector2f(0, 1.0));
 	//PhysicsCircle ball;
@@ -39,11 +39,8 @@ int main()
 	}
 	ship.setTexture(tex);
 	ship.setCenter(Vector2f(400, 300));
+	ship.setStatic(true);
 	world.AddPhysicsBody(ship);
-	//ball.setCenter(Vector2f(400, 300));
-	//ball.setRadius(30);
-	//world.AddPhysicsBody(ball);
-
 	PhysicsRectangle floor;
 	floor.setSize(Vector2f(800, 10));
 	floor.setCenter(Vector2f(400, 590));
