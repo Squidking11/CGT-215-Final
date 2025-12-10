@@ -44,13 +44,16 @@ void DoInput(PhysicsCircle& ship, Texture *laserTex, PhysicsShapeList<PhysicsSpr
 		PhysicsSprite& laser = lasers->Create();
 		laser.setTexture(*laserTex);
 		Vector2f sz = laser.getSize();
-		//laser.setSize(Vector2f(20, 5));
-		laser.setScale(.5, .5);
-		laser.setRotation(ship.getRotation());
+		laser.setSize(Vector2f(30, 10));
 
-		laser.getBounds().setSize(Vector2f(20, 5));
-		laser.setCenter(Vector2f(ship.getCenter().x + 50, ship.getCenter().y + 50));
+		laser.setCenter(Vector2f(ship.getCenter().x, ship.getCenter().y));
+
+		//laser.setScale(.5, .5);
+		//laser.setRotation(ship.getRotation() + 90);
+		//laser.setOrigin(ship.getCenter());
+		//laser.getBounds().setSize(Vector2f(20, 5));
 		world->AddPhysicsBody(laser);
+		cout << laser.getCenter().x << ", " << laser.getCenter().y << endl;
 	}
 }
 
@@ -110,7 +113,7 @@ int main()
 			DoInput(shipBox, &laserTex, &lasers, &fireCoolDown, &world);
 			wrapScreen(&shipBox);
 		}
-		if (fireDeltaTime >= 200) {
+		if (fireDeltaTime >= 400) {
 			lastFireTime = currentTime;
 			fireCoolDown = true;
 		}
