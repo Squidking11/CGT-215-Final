@@ -7,10 +7,15 @@
 #include <math.h>
 #include <Windows.h>
 #include <numbers>
+#include <random>
 
 #define LIFESPANMS 5000
 #define LASER_SPEED 0.3f
 #define SHIP_SPEED 0.0001f
+#define ASPAWNMIN -50
+#define ASPAWNXMAX 1050
+#define	ASPAWNYMAX 850
+#define ASPEED .05f
 
 constexpr auto PI = (3.141592653589793238462643383279502884);
 
@@ -19,10 +24,91 @@ using namespace std;
 using namespace sf;
 using namespace sfp;
 
-void bounce(PhysicsBodyCollisionResult result) 
-{
-	cout << "Bounce!" << endl;
+int randomInt(int min, int max) {
+	static std::random_device rd;
+	static std::mt19937 gen(rd());
+	std::uniform_int_distribution<int> dist(min, max);
+	return dist(gen);
 }
+
+struct ANode {
+	PhysicsRectangle *asteroidBox;
+	Sprite *asteroidSprite;
+	int size;
+	ANode* next = nullptr;
+	ANode(PhysicsRectangle *box, Sprite *image, int tsize) : asteroidBox(box), asteroidSprite(image), size(tsize) {}
+};
+
+class Asteroid {
+	ANode *node;
+	public:
+		Asteroid() : node(nullptr) {}
+		void insertNode(Texture *Atex, World *world) {
+			PhysicsRectangle *ABox = new PhysicsRectangle();
+			Sprite* ASprite = new Sprite(*Atex);
+
+			int size = randomInt(1, 3);
+			if (size == 1) {
+				ABox->setSize(Vector2f(25, 25));
+				ASprite->setScale(.25, .25);
+			}
+			else if (size == 2) {
+				ABox->setSize(Vector2f(50, 50));
+				ASprite->setScale(.5, .5);
+			}
+			else {
+				ABox->setSize(Vector2f(75, 75));
+				ASprite->setScale(.8, .8);
+			}
+
+			if (randomInt(0, 1)) {
+				if (randomInt(0, 1)) {
+					ABox->setCenter(Vector2f(randomInt(ASPAWNMIN, ASPAWNXMAX), ASPAWNMIN));
+				}
+				else {
+					ABox->setCenter(Vector2f(randomInt(ASPAWNMIN, ASPAWNXMAX), ASPAWNYMAX));
+				}
+			}
+			else {
+				if (randomInt(0, 1)) {
+					ABox->setCenter(Vector2f(ASPAWNMIN, randomInt(ASPAWNMIN, ASPAWNYMAX)));
+				}
+				else {
+					ABox->setCenter(Vector2f(ASPAWNXMAX, randomInt(ASPAWNMIN, ASPAWNYMAX)));
+				}
+			}
+
+			ABox->applyImpulse(Vector2f(cosf(randomInt(0, 360) * (PI / 180)), sinf(randomInt(0, 360) * (PI / 180))) * ASPEED);
+			ASprite->setRotation(randomInt(0, 360));
+			ASprite->setOrigin(Vector2f(Atex->getSize().x / 2, Atex->getSize().y / 2));
+			ASprite->setPosition(ABox->getCenter());
+			world->AddPhysicsBody(*ABox);
+
+			ANode* newNode = new ANode(ABox, ASprite, size);
+			if (!node) {
+				node = newNode;
+			}
+			else {
+				ANode* temp = node;
+				while (temp->next) {
+					temp = temp->next;
+				}
+				temp->next = newNode;
+			}
+		}
+		ANode* getHead() {
+			return node;
+		}
+		~Asteroid() {
+			ANode* temp = node;
+			while (temp) {
+				ANode* nextNode = temp->next;
+				delete temp;
+				temp = nextNode;
+			}
+			node = nullptr;
+		}
+};
 
 struct LaserNode {
 	PhysicsRectangle *laserBox;
@@ -162,6 +248,14 @@ int main()
 		cout << "Failed to load laser texture" << endl;
 	}
 	Laser *laserList = new Laser();
+	Asteroid asteroidList;
+	Texture asteroidTex;
+	if (!asteroidTex.loadFromFile("Asteroid.png")) {
+		cout << "Failed to load asteroid texture" << endl;
+	}
+	random_device rd;
+	default_random_engine gen(rd());
+	//asteroidList.insertNode(&asteroidTex, gen, &world);
 
 	Clock clock;
 	Time lastTime = clock.getElapsedTime();
@@ -184,6 +278,8 @@ int main()
 		if (fireDeltaTime >= 400) {
 			lastFireTime = currentTime;
 			fireCoolDown = true;
+			asteroidList.insertNode(&asteroidTex, &world);
+
 		}
 		
 
@@ -194,6 +290,13 @@ int main()
 			current->laserSprite->setPosition(current->laserBox->getCenter());
 			wrapScreen(current->laserBox);
 			current = current->next;
+		}
+		ANode* aCurrent = asteroidList.getHead();
+		while (aCurrent) {
+			window.draw(*(aCurrent->asteroidSprite));
+			aCurrent->asteroidSprite->setPosition(aCurrent->asteroidBox->getCenter());
+			wrapScreen(aCurrent->asteroidBox);
+			aCurrent = aCurrent->next;
 		}
 		window.draw(ship);
 		world.VisualizeAllBounds(window);
