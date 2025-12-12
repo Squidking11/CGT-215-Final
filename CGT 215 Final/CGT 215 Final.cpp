@@ -16,6 +16,7 @@
 #define ASPAWNXMAX 1050
 #define	ASPAWNYMAX 850
 #define ASPEED .05f
+#define AUTOSTOP 1.0f
 
 constexpr auto PI = (3.141592653589793238462643383279502884);
 
@@ -29,6 +30,12 @@ int randomInt(int min, int max) {
 	static std::mt19937 gen(rd());
 	std::uniform_int_distribution<int> dist(min, max);
 	return dist(gen);
+}
+Vector2f rotate(Vector2f v, float angle) {
+	float cs = cos(angle);
+	float sn = sin(angle);
+	return Vector2f(v.x * cs - v.y * sn,
+		v.x * sn + v.y * cs);
 }
 
 struct ANode {
@@ -96,6 +103,114 @@ class Asteroid {
 				temp->next = newNode;
 			}
 		}
+		void breakAsteroid(ANode* toBreak, World* world) {
+			if (toBreak->size == 3) {
+				PhysicsRectangle* ABox1 = new PhysicsRectangle();
+				Sprite* ASprite1 = new Sprite(*(toBreak->asteroidSprite->getTexture()));
+				PhysicsRectangle* ABox2 = new PhysicsRectangle();
+				Sprite* ASprite2 = new Sprite(*(toBreak->asteroidSprite->getTexture()));
+
+				Vector2f vel = toBreak->asteroidBox->getVelocity();
+				float mag = sqrt(vel.x * vel.x + vel.y * vel.y);
+				Vector2f dir = vel / mag;
+				Vector2f offset1 = dir * 50.0f + toBreak->asteroidBox->getCenter();
+				Vector2f offset2 = dir * -50.0f + toBreak->asteroidBox->getCenter();
+				insertBroken(offset1, .5, 50, ABox1, ASprite1, 2);
+				insertBroken(offset2, .5, 50, ABox2, ASprite2, 2);
+
+				float randAngle1 = randomInt(0, 60);
+				float randAngle2 = randomInt(0, 60);
+				Vector2f newDir1 = rotate(dir, randAngle1);
+				Vector2f newDir2 = rotate(dir, randAngle2);
+				ABox1->setVelocity(newDir1 * .005f);
+				ABox2->setVelocity(newDir2 * .005f);
+
+				world->AddPhysicsBody(*ABox1);
+				world->AddPhysicsBody(*ABox2);
+
+				world->RemovePhysicsBody(*(toBreak->asteroidBox));
+				deleteNode(toBreak);
+			}
+			else if (toBreak->size == 2) {
+				//create two size 1 asteroids
+				PhysicsRectangle* ABox1 = new PhysicsRectangle();
+				Sprite* ASprite1 = new Sprite(*(toBreak->asteroidSprite->getTexture()));
+				PhysicsRectangle* ABox2 = new PhysicsRectangle();
+				Sprite* ASprite2 = new Sprite(*(toBreak->asteroidSprite->getTexture()));
+
+				Vector2f vel = toBreak->asteroidBox->getVelocity();
+				float mag = sqrt(vel.x * vel.x + vel.y * vel.y);
+				Vector2f dir = vel / mag;
+				Vector2f offset1 = dir * 50.0f + toBreak->asteroidBox->getCenter();
+				Vector2f offset2 = dir * -50.0f + toBreak->asteroidBox->getCenter();
+				insertBroken(offset1, .25, 25, ABox1, ASprite1, 1);
+				insertBroken(offset2, .25, 25, ABox2, ASprite2, 1);
+
+				float randAngle1 = randomInt(0, 60);
+				float randAngle2 = randomInt(0, 60);
+				Vector2f newDir1 = rotate(dir, randAngle1);
+				Vector2f newDir2 = rotate(dir, randAngle2);
+				ABox1->setVelocity(newDir1 * .005f);
+				ABox2->setVelocity(newDir2 * .005f);
+
+				world->AddPhysicsBody(*ABox1);
+				world->AddPhysicsBody(*ABox2);
+
+				world->RemovePhysicsBody(*(toBreak->asteroidBox));
+				deleteNode(toBreak);
+			}
+			else {
+				world->RemovePhysicsBody(*(toBreak->asteroidBox));
+				deleteNode(toBreak);
+			}
+		}
+		void checkSpeed() {
+			ANode* temp = node;
+			while (temp) {
+				Vector2f vel = temp->asteroidBox->getVelocity();
+				float mag = sqrt(vel.x * vel.x + vel.y * vel.y);
+				if (mag > ASPEED || mag < ASPEED) {
+					Vector2f dir = vel / mag;
+					temp->asteroidBox->applyImpulse(-vel + dir * ASPEED);
+					//temp->asteroidBox->setVelocity(dir * ASPEED);
+				}
+				temp = temp->next;
+			}
+		}
+		void insertBroken(Vector2f center, double scale, int size, PhysicsRectangle *box, Sprite *sprite, int aSize) {
+			box->setSize(Vector2f(size, size));
+			sprite->setScale(Vector2f(scale, scale));
+			box->setCenter(center);
+			sprite->setRotation(randomInt(0, 360));
+			sprite->setOrigin(Vector2f(sprite->getTexture()->getSize().x / 2, sprite->getTexture()->getSize().y / 2));
+			sprite->setPosition(box->getCenter());
+			ANode* newNode = new ANode(box, sprite, aSize);
+			if (!node) {
+				node = newNode;
+			}
+			else {
+				ANode* temp = node;
+				while (temp->next) {
+					temp = temp->next;
+				}
+				temp->next = newNode;
+			}
+		}
+		void deleteNode(ANode* toDelete) {
+			if (node == toDelete) {
+				node = toDelete->next;
+			}
+			else {
+				ANode* temp = node;
+				while (temp && temp->next != toDelete) {
+					temp = temp->next;
+				}
+				if (temp) {
+					temp->next = toDelete->next;
+				}
+			}
+			delete toDelete;
+		}
 		ANode* getHead() {
 			return node;
 		}
@@ -122,7 +237,7 @@ class Laser {
 	LaserNode *node;
 	public:
 		Laser() : node(nullptr) {}
-		void insertNode(PhysicsRectangle *box, Sprite *image) {
+		LaserNode* insertNode(PhysicsRectangle *box, Sprite *image) {
 			LaserNode* newNode = new LaserNode(box, image);
 			if (!node) {
 				node = newNode;
@@ -134,6 +249,23 @@ class Laser {
 				}
 				temp->next = newNode;
 			}
+			return newNode;
+		}
+		void deleteNode(LaserNode* toDelete) {
+
+			if (node == toDelete) {
+				node = toDelete->next;
+			}
+			else {
+				LaserNode* temp = node;
+				while (temp && temp->next != toDelete) {
+					temp = temp->next;
+				}
+				if (temp) {
+					temp->next = toDelete->next;
+				}
+			}
+			delete toDelete;
 		}
 		LaserNode* getHead() {
 			return node;
@@ -176,7 +308,7 @@ class Laser {
 };
 
 void DoInput(PhysicsCircle& ship, Texture *laserTex,
-			 bool *fireCoolDown, World *world, Laser *laserList) {
+			 bool *fireCoolDown, World *world, Laser *laserList, Asteroid *aList) {
 	float angle = ship.getRotation();
 	float dirX(cosf((angle - 90) * (PI / 180)));
 	float dirY(sinf((angle - 90) * (PI / 180)));
@@ -193,6 +325,14 @@ void DoInput(PhysicsCircle& ship, Texture *laserTex,
 	if (Keyboard::isKeyPressed(Keyboard::S)) {
 		ship.applyImpulse(-(Vector2f(dirX, dirY) * SHIP_SPEED));
 	}
+	if (!Keyboard::isKeyPressed(Keyboard::W) && !Keyboard::isKeyPressed(Keyboard::S)) {
+		Vector2f vel = ship.getVelocity();
+		float mag = sqrt(vel.x * vel.x + vel.y * vel.y);
+		if (mag > 0) {
+			Vector2f dir = vel / mag;
+			ship.applyImpulse(-dir * SHIP_SPEED * AUTOSTOP);
+		}
+	}
 	if (*fireCoolDown && Keyboard::isKeyPressed(Keyboard::Space)) {
 		*fireCoolDown = false;
 		PhysicsRectangle *laserBox = new PhysicsRectangle();
@@ -200,11 +340,38 @@ void DoInput(PhysicsCircle& ship, Texture *laserTex,
 		laserBox->setSize(Vector2f(30, 30));
 		laserBox->setCenter(Vector2f((ship.getCenter().x + 50) + dirX * 50, (ship.getCenter().y + 50) + dirY * 50));
 		laserBox->applyImpulse(Vector2f(dirX, dirY) * LASER_SPEED);
+		
 		laserSprite->setRotation(ship.getRotation() + 90);
 		laserSprite->setOrigin(Vector2f(laserTex->getSize().x / 2, laserTex->getSize().y / 2));
 		laserSprite->setPosition(laserBox->getCenter());
 		world->AddPhysicsBody(*laserBox);
-		laserList->insertNode(laserBox, laserSprite);
+		LaserNode *node = laserList->insertNode(laserBox, laserSprite);
+		laserBox->onCollision = [aList, world, laserBox, laserSprite, laserList, node](PhysicsBodyCollisionResult result) {
+			world->RemovePhysicsBody(*laserBox);
+			LaserNode* current = laserList->getHead();
+			while (current) {
+				if (result.object1 == *(current->laserBox)) {
+					//world->RemovePhysicsBody(*current->laserBox);
+					laserList->deleteNode(current);
+					break;
+				}
+				current = current->next;
+			}
+			ANode* aCurrent = aList->getHead();
+			cout << "Collision detected!" << endl;
+			while (aCurrent) {
+				cout << "Checking asteroid..." << endl;
+				if (result.object2 == *(aCurrent->asteroidBox)) {
+					cout << "Asteroid hit!" << endl;
+					//world->RemovePhysicsBody(*(aCurrent->asteroidBox));
+					//aList->deleteNode(aCurrent);
+					aList->breakAsteroid(aCurrent, world);
+					break;
+				}
+				aCurrent = aCurrent->next;
+			}
+			
+		};
 	}
 }
 
@@ -260,6 +427,7 @@ int main()
 	Clock clock;
 	Time lastTime = clock.getElapsedTime();
 	Time lastFireTime = clock.getElapsedTime();
+	Time lastAsteroidTime = clock.getElapsedTime();
 	bool fireCoolDown = true;
 	while (true) {
 		Time currentTime(clock.getElapsedTime());
@@ -267,22 +435,25 @@ int main()
 		int deltaTimeMS(deltaTime.asMilliseconds());
 		laserList->updateLifespans(deltaTimeMS, &world);
 		int fireDeltaTime = (currentTime - lastFireTime).asMilliseconds();
+		int aDeltaTimeMS = (currentTime - lastAsteroidTime).asMilliseconds();
 		if (deltaTimeMS > 0) {
 			world.UpdatePhysics(deltaTimeMS);
 			lastTime = currentTime;
-			DoInput(shipBox, &laserTex, &fireCoolDown, &world, laserList);
+			DoInput(shipBox, &laserTex, &fireCoolDown, &world, laserList, &asteroidList);
 			wrapScreen(&shipBox);
 			ship.setPosition(Vector2f(shipBox.getCenter().x + 50, shipBox.getCenter().y + 50));
 			ship.setRotation(shipBox.getRotation());
+			asteroidList.checkSpeed();
 		}
-		if (fireDeltaTime >= 400) {
+		if (fireDeltaTime >= 500) {
 			lastFireTime = currentTime;
 			fireCoolDown = true;
+		}
+		if (aDeltaTimeMS >= 2000) {
+			lastAsteroidTime = currentTime;
 			asteroidList.insertNode(&asteroidTex, &world);
-
 		}
 		
-
 		window.clear();
 		LaserNode* current = laserList->getHead();
 		while (current) {
