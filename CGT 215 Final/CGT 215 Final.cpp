@@ -1,6 +1,3 @@
-// CGT 215 Final.cpp : This file contains the 'main' function. Program execution begins and ends there.
-//
-
 #include <iostream>
 #include "SFML/Graphics.hpp"
 #include "SFPhysics.h"
@@ -16,7 +13,7 @@
 #define ASPAWNMIN -50
 #define ASPAWNXMAX 1050
 #define	ASPAWNYMAX 850
-#define ASPEED .05f
+#define ASPEED .1f
 #define AUTOSTOP 1.0f
 #define NUMLIVES 3
 
@@ -27,32 +24,50 @@ using namespace std;
 using namespace sf;
 using namespace sfp;
 
+/*
+ * Utilises a random device to generate a random integer between min and max, inclusive.
+ */
 int randomInt(int min, int max) {
 	static std::random_device rd;
 	static std::mt19937 gen(rd());
 	std::uniform_int_distribution<int> dist(min, max);
 	return dist(gen);
-}
+} /* randomInt() */
+
+/*
+ * Rotates a 2D vector by a given angle in radians.
+ */
 Vector2f rotate(Vector2f v, float angle) {
 	float cs = cos(angle);
 	float sn = sin(angle);
 	return Vector2f(v.x * cs - v.y * sn,
 		v.x * sn + v.y * cs);
-}
+} /* rotate() */
 
+
+/*
+ * Linked list structure to store data for asteroids
+ */
 struct ANode {
-	PhysicsRectangle *asteroidBox;
-	Sprite *asteroidSprite;
+	PhysicsRectangle* asteroidBox;
+	Sprite* asteroidSprite;
 	int size;
 	ANode* next = nullptr;
-	ANode(PhysicsRectangle *box, Sprite *image, int tsize) : asteroidBox(box), asteroidSprite(image), size(tsize) {}
+	ANode(PhysicsRectangle* box, Sprite* image, int tsize) : asteroidBox(box), asteroidSprite(image), size(tsize) {}
 };
 
+/*
+ * Class to manage the linked list of asteroids and their behaviors
+ */
 class Asteroid {
-	ANode *node;
-	int numAsteroids = 0;
+	ANode* node; // head of the linked list
+	int numAsteroids;  // total number of asteroids created
 	public:
-		Asteroid() : node(nullptr) {}
+		Asteroid() : node(nullptr), numAsteroids(0) {} // constructor
+
+		/*
+		 * Inserts a new asteroid node into the linked list with random size and position around the screen edges
+		 */
 		void insertNode(Texture *Atex, World *world) {
 			PhysicsRectangle *ABox = new PhysicsRectangle();
 			Sprite* ASprite = new Sprite(*Atex);
@@ -105,7 +120,11 @@ class Asteroid {
 				}
 				temp->next = newNode;
 			}
-		}
+		} /* insertNode() */
+
+		/*
+		 * Breaks an asteroid into smaller pieces or removes it if it's the smallest size
+		 */
 		void breakAsteroid(ANode* toBreak, World* world) {
 			if (toBreak->size == 3) {
 				PhysicsRectangle* ABox1 = new PhysicsRectangle();
@@ -130,12 +149,10 @@ class Asteroid {
 
 				world->AddPhysicsBody(*ABox1);
 				world->AddPhysicsBody(*ABox2);
-
 				world->RemovePhysicsBody(*(toBreak->asteroidBox));
 				deleteNode(toBreak);
 			}
 			else if (toBreak->size == 2) {
-				//create two size 1 asteroids
 				PhysicsRectangle* ABox1 = new PhysicsRectangle();
 				Sprite* ASprite1 = new Sprite(*(toBreak->asteroidSprite->getTexture()));
 				PhysicsRectangle* ABox2 = new PhysicsRectangle();
@@ -166,7 +183,11 @@ class Asteroid {
 				world->RemovePhysicsBody(*(toBreak->asteroidBox));
 				deleteNode(toBreak);
 			}
-		}
+		} /* breakAsteroid() */
+
+		/*
+		 * Checks and adjusts the speed of all asteroids to maintain a constant speed
+		 */
 		void checkSpeed() {
 			ANode* temp = node;
 			while (temp) {
@@ -175,11 +196,14 @@ class Asteroid {
 				if (mag > ASPEED || mag < ASPEED) {
 					Vector2f dir = vel / mag;
 					temp->asteroidBox->applyImpulse(-vel + dir * ASPEED);
-					//temp->asteroidBox->setVelocity(dir * ASPEED);
 				}
 				temp = temp->next;
 			}
-		}
+		} /* checkSpeed() */
+
+		/*
+		 * Used to insert newly created broken asteroid pieces into the linked list
+		 */
 		void insertBroken(Vector2f center, double scale, int size, PhysicsRectangle *box, Sprite *sprite, int aSize) {
 			box->setSize(Vector2f(size, size));
 			sprite->setScale(Vector2f(scale, scale));
@@ -198,7 +222,11 @@ class Asteroid {
 				}
 				temp->next = newNode;
 			}
-		}
+		} /* insertBroken() */
+		
+		/*
+		 * Deletes a specified asteroid node from the linked list
+		 */
 		void deleteNode(ANode* toDelete) {
 			if (node == toDelete) {
 				node = toDelete->next;
@@ -213,7 +241,11 @@ class Asteroid {
 				}
 			}
 			delete toDelete;
-		}
+		} /* deleteNode() */
+
+		/*
+		 * Clears the entire asteroid linked list and removes their physics bodies from the world
+		 */
 		void clearList(World &world) {
 			ANode* temp = node;
 			while (temp) {
@@ -223,13 +255,25 @@ class Asteroid {
 				temp = nextNode;
 			}
 			node = nullptr;
-		}
+		} /* clearList() */
+
+		/*
+		 * Returns the head of the asteroid linked list
+		 */
 		ANode* getHead() {
 			return node;
-		}
+		} /* getHead() */
+
+		/*
+		 * Returns the total number of asteroids created
+		 */
 		int getNumAsteroids() {
 			return numAsteroids;
-		}
+		} /* getNumAsteroids() */
+
+		/*
+		 * Destructor to clean up the linked list
+		 */
 		~Asteroid() {
 			ANode* temp = node;
 			while (temp) {
@@ -238,21 +282,31 @@ class Asteroid {
 				temp = nextNode;
 			}
 			node = nullptr;
-		}
+		} /* ~Asteroid() */
 };
 
+/*
+ * Linked list structure to store data for lasers
+ */
 struct LaserNode {
 	PhysicsRectangle *laserBox;
 	Sprite *laserSprite;
-	int lifeSpan = LIFESPANMS; // milliseconds
+	int lifeSpan = LIFESPANMS;
 	LaserNode* next = nullptr;
 	LaserNode(PhysicsRectangle *box, Sprite *image) : laserBox(box), laserSprite(image) {}
 };
 
+/*
+ * Class to manage the linked list of lasers and their behaviors
+ */
 class Laser {
 	LaserNode *node;
 	public:
-		Laser() : node(nullptr) {}
+		Laser() : node(nullptr) {} // Constructor
+
+		/*
+		 * Creates and inserts a new laser node into the linked list
+		 */
 		LaserNode* insertNode(PhysicsRectangle *box, Sprite *image) {
 			LaserNode* newNode = new LaserNode(box, image);
 			if (!node) {
@@ -266,7 +320,11 @@ class Laser {
 				temp->next = newNode;
 			}
 			return newNode;
-		}
+		} /* insertNode() */
+
+		/*
+		 * Deletes a specified laser node from the linked list
+		 */
 		void deleteNode(LaserNode* toDelete) {
 
 			if (node == toDelete) {
@@ -282,10 +340,18 @@ class Laser {
 				}
 			}
 			delete toDelete;
-		}
+		} /* deleteNode() */
+
+		/*
+		 * Returns the head of the laser linked list
+		 */
 		LaserNode* getHead() {
 			return node;
-		}
+		} /* getHead() */
+
+		/*
+		 * Clears the entire laser linked list and removes their physics bodies from the world
+		 */
 		void clearList(World &world) {
 			LaserNode* temp = node;
 			while (temp) {
@@ -295,7 +361,11 @@ class Laser {
 				temp = nextNode;
 			}
 			node = nullptr;
-		}
+		} /* clearList() */
+
+		/*
+		 * Updates the lifespans of all lasers and removes any that have expired
+		 */
 		void updateLifespans(int deltaTimeMS, World *world) {
 			LaserNode* temp = node;
 			LaserNode* prev = nullptr;
@@ -321,7 +391,11 @@ class Laser {
 					temp = temp->next;
 				}
 			}
-		}
+		} /* updateLifespans() */
+
+		/*
+		 * Destructor to clean up the linked list
+		 */
 		~Laser() {
 			LaserNode* temp = node;
 			while (temp) {
@@ -330,11 +404,13 @@ class Laser {
 				temp = nextNode;
 			}
 			node = nullptr;
-		}
+		} /* ~Laser() */
 };
 
-void DoInput(PhysicsCircle& ship, Texture *laserTex,
-			 bool *fireCoolDown, World *world, Laser *laserList, Asteroid *aList, int *score, int *numLives, Sound &laserSound, Sound &explosionSound) {
+/*
+ * Handles user input for ship movement and firing lasers
+ */
+void DoInput(PhysicsCircle& ship, Texture *laserTex, bool *fireCoolDown, World *world, Laser *laserList, Asteroid *aList, int *score, Sound &laserSound, Sound &explosionSound) {
 	float angle = ship.getRotation();
 	float dirX(cosf((angle - 90) * (PI / 180)));
 	float dirY(sinf((angle - 90) * (PI / 180)));
@@ -374,7 +450,7 @@ void DoInput(PhysicsCircle& ship, Texture *laserTex,
 		laserSprite->setPosition(laserBox->getCenter());
 		world->AddPhysicsBody(*laserBox);
 		LaserNode *node = laserList->insertNode(laserBox, laserSprite);
-		laserBox->onCollision = [aList, world, laserBox, laserSprite, laserList, node, score, numLives, &ship, &explosionSound](PhysicsBodyCollisionResult result) {
+		laserBox->onCollision = [aList, world, laserBox, laserSprite, laserList, node, score, &ship, &explosionSound](PhysicsBodyCollisionResult result) {
 			if (result.object2 == ship) {
 				ship.setVelocity(Vector2f(0, 0));
 			}
@@ -624,7 +700,7 @@ int main()
 			if (deltaTimeMS > 0) {
 				world.UpdatePhysics(deltaTimeMS);
 				lastTime = currentTime;
-				DoInput(shipBox, &laserTex, &fireCoolDown, &world, laserList, &asteroidList, &score, &numLives, laserSound, explosionSound);
+				DoInput(shipBox, &laserTex, &fireCoolDown, &world, laserList, &asteroidList, &score, laserSound, explosionSound);
 				wrapScreen(&shipBox);
 				ship.setPosition(Vector2f(shipBox.getCenter().x + 50, shipBox.getCenter().y + 50));
 				ship.setRotation(shipBox.getRotation());
@@ -662,7 +738,7 @@ int main()
 			for (int i = 0; i < numLives; i++) {
 				window.draw(livesSprite1[i]);
 			}
-			world.VisualizeAllBounds(window);
+			//world.VisualizeAllBounds(window);
 			window.display();
 		}
 		bool newHighScore = false;
