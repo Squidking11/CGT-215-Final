@@ -212,6 +212,16 @@ class Asteroid {
 			}
 			delete toDelete;
 		}
+		void clearList(World &world) {
+			ANode* temp = node;
+			while (temp) {
+				world.RemovePhysicsBody(*(temp->asteroidBox));
+				ANode* nextNode = temp->next;
+				delete temp;
+				temp = nextNode;
+			}
+			node = nullptr;
+		}
 		ANode* getHead() {
 			return node;
 		}
@@ -270,6 +280,16 @@ class Laser {
 		}
 		LaserNode* getHead() {
 			return node;
+		}
+		void clearList(World &world) {
+			LaserNode* temp = node;
+			while (temp) {
+				world.RemovePhysicsBody(*(temp->laserBox));
+				LaserNode* nextNode = temp->next;
+				delete temp;
+				temp = nextNode;
+			}
+			node = nullptr;
 		}
 		void updateLifespans(int deltaTimeMS, World *world) {
 			LaserNode* temp = node;
@@ -334,7 +354,8 @@ void DoInput(PhysicsCircle& ship, Texture *laserTex,
 			ship.applyImpulse(-dir * SHIP_SPEED * AUTOSTOP);
 		}
 	}
-	if (*fireCoolDown && Keyboard::isKeyPressed(Keyboard::Space)) {
+	bool isPressed = Keyboard::isKeyPressed(Keyboard::Space);
+	if (*fireCoolDown && isPressed) {
 		*fireCoolDown = false;
 		PhysicsRectangle *laserBox = new PhysicsRectangle();
 		Sprite *laserSprite = new Sprite(*laserTex);
@@ -347,7 +368,10 @@ void DoInput(PhysicsCircle& ship, Texture *laserTex,
 		laserSprite->setPosition(laserBox->getCenter());
 		world->AddPhysicsBody(*laserBox);
 		LaserNode *node = laserList->insertNode(laserBox, laserSprite);
-		laserBox->onCollision = [aList, world, laserBox, laserSprite, laserList, node, score, numLives](PhysicsBodyCollisionResult result) {
+		laserBox->onCollision = [aList, world, laserBox, laserSprite, laserList, node, score, numLives, &ship](PhysicsBodyCollisionResult result) {
+			if (result.object2 == ship) {
+				ship.setVelocity(Vector2f(0, 0));
+			}
 			world->RemovePhysicsBody(*laserBox);
 			LaserNode* current = laserList->getHead();
 			while (current) {
@@ -365,8 +389,6 @@ void DoInput(PhysicsCircle& ship, Texture *laserTex,
 				cout << "Checking asteroid..." << endl;
 				if (result.object2 == *(aCurrent->asteroidBox)) {
 					cout << "Asteroid hit!" << endl;
-					//world->RemovePhysicsBody(*(aCurrent->asteroidBox));
-					//aList->deleteNode(aCurrent);
 					if (aCurrent->size == 3) {
 						*score += 20;
 					}
@@ -404,38 +426,13 @@ void wrapScreen(T* obj) {
 
 int main()
 {
+	Clock clock;
 	int numLives = NUMLIVES;
 	int score = 0;
+	int highscore = 0;
+	bool play = true;
 	RenderWindow window(VideoMode(1000, 800), "CGT 215 Final Project");
 	World world(Vector2f(0, 0));
-	PhysicsCircle shipBox;
-	Texture tex;
-	if (!tex.loadFromFile("SpaceShip.png")) {
-		cout << "Failed to load texture" << endl;
-	}
-
-	Sprite ship(tex);
-	shipBox.setSize(Vector2f(50, 50));
-	shipBox.setCenter(Vector2f(500, 400));
-	ship.setOrigin(Vector2f(tex.getSize().x / 2, tex.getSize().y / 2));
-	ship.setScale(Vector2f(.5, .5));
-	ship.setPosition(Vector2f(shipBox.getCenter().x + 50, shipBox.getCenter().y + 50));
-	
-	world.AddPhysicsBody(shipBox);
-
-	Texture laserTex;
-	if (!laserTex.loadFromFile("LaserBeam.png")) {
-		cout << "Failed to load laser texture" << endl;
-	}
-	Laser *laserList = new Laser();
-	Asteroid asteroidList;
-	Texture asteroidTex;
-	if (!asteroidTex.loadFromFile("Asteroid.png")) {
-		cout << "Failed to load asteroid texture" << endl;
-	}
-	random_device rd;
-	default_random_engine gen(rd());
-	//asteroidList.insertNode(&asteroidTex, gen, &world);
 
 	Font font;
 	if (!font.loadFromFile("Ethnocentric.otf")) {
@@ -464,11 +461,48 @@ int main()
 		window.display();
 	}
 
+	PhysicsCircle shipBox;
+	Texture tex;
+	if (!tex.loadFromFile("SpaceShip.png")) {
+		cout << "Failed to load texture" << endl;
+	}
+
+	Sprite ship(tex);
+	shipBox.setSize(Vector2f(50, 50));
+	shipBox.setCenter(Vector2f(500, 400));
+	ship.setOrigin(Vector2f(tex.getSize().x / 2, tex.getSize().y / 2));
+	ship.setScale(Vector2f(.5, .5));
+	ship.setPosition(Vector2f(shipBox.getCenter().x + 50, shipBox.getCenter().y + 50));
+
+	world.AddPhysicsBody(shipBox);
+
+	Texture laserTex;
+	if (!laserTex.loadFromFile("LaserBeam.png")) {
+		cout << "Failed to load laser texture" << endl;
+	}
+	Laser* laserList = new Laser();
+	Asteroid asteroidList;
+	Texture asteroidTex;
+	if (!asteroidTex.loadFromFile("Asteroid.png")) {
+		cout << "Failed to load asteroid texture" << endl;
+	}
+	random_device rd;
+	default_random_engine gen(rd());
+	//asteroidList.insertNode(&asteroidTex, gen, &world);
+
+	
+
 	Text scoreText;
 	scoreText.setFont(font);
 	scoreText.setCharacterSize(20);      // pixels
 	scoreText.setFillColor(sf::Color::White);
 	scoreText.setPosition(20, 10);
+
+	Text highScoreText;
+	highScoreText.setFont(font);
+	highScoreText.setCharacterSize(20);      // pixels
+	highScoreText.setFillColor(sf::Color::White);
+	highScoreText.setPosition(400, 10);
 
 	Sprite livesSprite1[3];
 	for (auto& livesSprite : livesSprite1) {
@@ -479,60 +513,169 @@ int main()
 		livesSprite1[i].setPosition(20 + i * 40, 45);
 	}
 
-
-
-	Clock clock;
-	Time lastTime = clock.getElapsedTime();
-	Time lastFireTime = clock.getElapsedTime();
-	Time lastAsteroidTime = clock.getElapsedTime();
-	bool fireCoolDown = true;
-	while (true) {
-		Time currentTime(clock.getElapsedTime());
-		Time deltaTime = currentTime - lastTime;
-		int deltaTimeMS(deltaTime.asMilliseconds());
-		laserList->updateLifespans(deltaTimeMS, &world);
-		int fireDeltaTime = (currentTime - lastFireTime).asMilliseconds();
-		int aDeltaTimeMS = (currentTime - lastAsteroidTime).asMilliseconds();
-		if (deltaTimeMS > 0) {
-			world.UpdatePhysics(deltaTimeMS);
-			lastTime = currentTime;
-			DoInput(shipBox, &laserTex, &fireCoolDown, &world, laserList, &asteroidList, &score, &numLives);
-			wrapScreen(&shipBox);
-			ship.setPosition(Vector2f(shipBox.getCenter().x + 50, shipBox.getCenter().y + 50));
-			ship.setRotation(shipBox.getRotation());
-			asteroidList.checkSpeed();
-			scoreText.setString("Score: " + to_string(score));
-		}
-		if (fireDeltaTime >= 500) {
-			lastFireTime = currentTime;
-			fireCoolDown = true;
-		}
-		if (aDeltaTimeMS >= 2000) {
-			lastAsteroidTime = currentTime;
-			asteroidList.insertNode(&asteroidTex, &world);
-		}
-		
-		window.clear();
-		LaserNode* current = laserList->getHead();
-		while (current) {
-			window.draw(*(current->laserSprite));
-			current->laserSprite->setPosition(current->laserBox->getCenter());
-			wrapScreen(current->laserBox);
-			current = current->next;
+	shipBox.onCollision = [&numLives, &livesSprite1, &shipBox, &world, &asteroidList, &play, &laserList, &ship, &window](PhysicsBodyCollisionResult result) {
+		numLives--;
+		laserList->clearList(world);
+		cout << "Ship hit! Lives remaining: " << numLives << endl;
+		shipBox.setCenter(Vector2f(500, 400));
+		shipBox.setRotation(0);
+		shipBox.setVelocity(Vector2f(0, 0));
+		if (numLives <= 0) {
+			cout << "Game Over!" << endl;
+			play = false;
 		}
 		ANode* aCurrent = asteroidList.getHead();
 		while (aCurrent) {
-			window.draw(*(aCurrent->asteroidSprite));
-			aCurrent->asteroidSprite->setPosition(aCurrent->asteroidBox->getCenter());
-			wrapScreen(aCurrent->asteroidBox);
+			if (result.object2 == *(aCurrent->asteroidBox)) {
+				world.RemovePhysicsBody(*(aCurrent->asteroidBox));
+				asteroidList.deleteNode(aCurrent);
+				break;
+			}
 			aCurrent = aCurrent->next;
 		}
-		window.draw(ship);
-		window.draw(scoreText);
-		for (auto& livesSprite : livesSprite1) {
-			window.draw(livesSprite);
+	};
+
+	while (true) {
+		Time lastTime = clock.getElapsedTime();
+		Time lastFireTime = clock.getElapsedTime();
+		Time lastAsteroidTime = clock.getElapsedTime();
+		bool fireCoolDown = true;
+		while (play) {
+			Event event;
+			while (window.pollEvent(event)) {
+				if (event.type == Event::Closed) {
+					window.close();
+					exit(0);
+				}
+			}
+			Time currentTime(clock.getElapsedTime());
+			Time deltaTime = currentTime - lastTime;
+			int deltaTimeMS(deltaTime.asMilliseconds());
+			laserList->updateLifespans(deltaTimeMS, &world);
+			int fireDeltaTime = (currentTime - lastFireTime).asMilliseconds();
+			int aDeltaTimeMS = (currentTime - lastAsteroidTime).asMilliseconds();
+			if (deltaTimeMS > 0) {
+				world.UpdatePhysics(deltaTimeMS);
+				lastTime = currentTime;
+				DoInput(shipBox, &laserTex, &fireCoolDown, &world, laserList, &asteroidList, &score, &numLives);
+				wrapScreen(&shipBox);
+				ship.setPosition(Vector2f(shipBox.getCenter().x + 50, shipBox.getCenter().y + 50));
+				ship.setRotation(shipBox.getRotation());
+				asteroidList.checkSpeed();
+				scoreText.setString("Score: " + to_string(score));
+				highScoreText.setString("High Score: " + to_string(highscore));
+			}
+			if (fireDeltaTime >= 500) {
+				lastFireTime = currentTime;
+				fireCoolDown = true;
+			}
+			if (aDeltaTimeMS >= 2000) {
+				lastAsteroidTime = currentTime;
+				asteroidList.insertNode(&asteroidTex, &world);
+			}
+
+			window.clear();
+			LaserNode* current = laserList->getHead();
+			while (current) {
+				window.draw(*(current->laserSprite));
+				current->laserSprite->setPosition(current->laserBox->getCenter());
+				wrapScreen(current->laserBox);
+				current = current->next;
+			}
+			ANode* aCurrent = asteroidList.getHead();
+			while (aCurrent) {
+				window.draw(*(aCurrent->asteroidSprite));
+				aCurrent->asteroidSprite->setPosition(aCurrent->asteroidBox->getCenter());
+				wrapScreen(aCurrent->asteroidBox);
+				aCurrent = aCurrent->next;
+			}
+			window.draw(ship);
+			window.draw(scoreText);
+			window.draw(highScoreText);
+			for (int i = 0; i < numLives; i++) {
+				window.draw(livesSprite1[i]);
+			}
+			world.VisualizeAllBounds(window);
+			window.display();
 		}
-		world.VisualizeAllBounds(window);
-		window.display();
+		bool newHighScore = false;
+		while (true) {
+			Text gameOver;
+			gameOver.setFont(font);
+			gameOver.setString("Game Over!");
+			gameOver.setCharacterSize(50);      // pixels
+			gameOver.setFillColor(sf::Color::White);
+			gameOver.setPosition(275, 300);
+			window.clear();
+
+			Text finalScore;
+			finalScore.setFont(font);
+			finalScore.setString("Final Score: " + to_string(score));
+			finalScore.setCharacterSize(30);      // pixels
+			finalScore.setFillColor(sf::Color::White);
+			finalScore.setPosition(345, 350);
+
+			Text input;
+			input.setFont(font);
+			input.setString("(Press ESC to Exit or Click to Play Again)");
+			input.setCharacterSize(15);      // pixels
+			input.setFillColor(sf::Color::White);
+			input.setPosition(250, 750);
+
+			Text NewHighScoreDisplay;
+			NewHighScoreDisplay.setFont(font);
+			NewHighScoreDisplay.setCharacterSize(30);      // pixels
+			NewHighScoreDisplay.setFillColor(sf::Color::White);
+			NewHighScoreDisplay.setPosition(300, 350);
+
+			Text highScoreText;
+			highScoreText.setFont(font);
+			highScoreText.setCharacterSize(20);      // pixels
+			highScoreText.setFillColor(sf::Color::White);
+			highScoreText.setPosition(400, 385);
+			highScoreText.setString("High Score: " + to_string(highscore));
+
+			ANode* aCurrent = asteroidList.getHead();
+			while (aCurrent) {
+				window.draw(*(aCurrent->asteroidSprite));
+				aCurrent = aCurrent->next;
+			}
+			if (score > highscore) {
+				newHighScore = true;
+			}
+			if (newHighScore) {
+				cout << "New High Score!" << endl;
+				highscore = score;
+				NewHighScoreDisplay.setString("New High Score: " + to_string(highscore));
+				window.draw(NewHighScoreDisplay);
+			}
+			else {
+				window.draw(highScoreText);
+				window.draw(finalScore);
+			}
+
+			window.draw(gameOver);
+			window.draw(input);
+			window.display();
+			if (Keyboard::isKeyPressed(Keyboard::Escape)) {
+				exit(0);
+			}
+			if (Mouse::isButtonPressed(Mouse::Left)) {
+				cout << "Restarting game..." << endl;
+				numLives = NUMLIVES;
+				score = 0;
+				shipBox.setCenter(Vector2f(500, 400));
+				shipBox.setRotation(0);
+				shipBox.setVelocity(Vector2f(0, 0));
+				asteroidList.clearList(world);
+				laserList->clearList(world);
+				play = true;
+				lastTime = clock.getElapsedTime();
+				lastFireTime = clock.getElapsedTime();
+				lastAsteroidTime = clock.getElapsedTime();
+				fireCoolDown = true;
+				break;
+			}
+		}
 	}
 }
