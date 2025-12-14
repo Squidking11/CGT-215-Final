@@ -8,6 +8,7 @@
 #include <Windows.h>
 #include <numbers>
 #include <random>
+#include <SFML/Audio.hpp>
 
 #define LIFESPANMS 5000
 #define LASER_SPEED 0.3f
@@ -49,12 +50,13 @@ struct ANode {
 
 class Asteroid {
 	ANode *node;
+	int numAsteroids = 0;
 	public:
 		Asteroid() : node(nullptr) {}
 		void insertNode(Texture *Atex, World *world) {
 			PhysicsRectangle *ABox = new PhysicsRectangle();
 			Sprite* ASprite = new Sprite(*Atex);
-
+			numAsteroids++;
 			int size = randomInt(1, 3);
 			if (size == 1) {
 				ABox->setSize(Vector2f(25, 25));
@@ -225,6 +227,9 @@ class Asteroid {
 		ANode* getHead() {
 			return node;
 		}
+		int getNumAsteroids() {
+			return numAsteroids;
+		}
 		~Asteroid() {
 			ANode* temp = node;
 			while (temp) {
@@ -329,7 +334,7 @@ class Laser {
 };
 
 void DoInput(PhysicsCircle& ship, Texture *laserTex,
-			 bool *fireCoolDown, World *world, Laser *laserList, Asteroid *aList, int *score, int *numLives) {
+			 bool *fireCoolDown, World *world, Laser *laserList, Asteroid *aList, int *score, int *numLives, Sound &laserSound, Sound &explosionSound) {
 	float angle = ship.getRotation();
 	float dirX(cosf((angle - 90) * (PI / 180)));
 	float dirY(sinf((angle - 90) * (PI / 180)));
@@ -356,6 +361,7 @@ void DoInput(PhysicsCircle& ship, Texture *laserTex,
 	}
 	bool isPressed = Keyboard::isKeyPressed(Keyboard::Space);
 	if (*fireCoolDown && isPressed) {
+		laserSound.play();
 		*fireCoolDown = false;
 		PhysicsRectangle *laserBox = new PhysicsRectangle();
 		Sprite *laserSprite = new Sprite(*laserTex);
@@ -368,7 +374,7 @@ void DoInput(PhysicsCircle& ship, Texture *laserTex,
 		laserSprite->setPosition(laserBox->getCenter());
 		world->AddPhysicsBody(*laserBox);
 		LaserNode *node = laserList->insertNode(laserBox, laserSprite);
-		laserBox->onCollision = [aList, world, laserBox, laserSprite, laserList, node, score, numLives, &ship](PhysicsBodyCollisionResult result) {
+		laserBox->onCollision = [aList, world, laserBox, laserSprite, laserList, node, score, numLives, &ship, &explosionSound](PhysicsBodyCollisionResult result) {
 			if (result.object2 == ship) {
 				ship.setVelocity(Vector2f(0, 0));
 			}
@@ -376,6 +382,8 @@ void DoInput(PhysicsCircle& ship, Texture *laserTex,
 			LaserNode* current = laserList->getHead();
 			while (current) {
 				if (result.object1 == *(current->laserBox)) {
+					cout << "Laser hit!" << endl;
+					explosionSound.play();
 					//world->RemovePhysicsBody(*current->laserBox);
 					laserList->deleteNode(current);
 					break;
@@ -388,6 +396,7 @@ void DoInput(PhysicsCircle& ship, Texture *laserTex,
 			while (aCurrent) {
 				cout << "Checking asteroid..." << endl;
 				if (result.object2 == *(aCurrent->asteroidBox)) {
+					explosionSound.play();
 					cout << "Asteroid hit!" << endl;
 					if (aCurrent->size == 3) {
 						*score += 20;
@@ -433,6 +442,34 @@ int main()
 	bool play = true;
 	RenderWindow window(VideoMode(1000, 800), "CGT 215 Final Project");
 	World world(Vector2f(0, 0));
+	random_device rd;
+	default_random_engine gen(rd());
+
+	Music background;
+	if (!background.openFromFile("background.wav")) {
+		cout << "Failed to load background music" << endl;
+	}
+	background.setLoop(true);
+	background.play();
+
+	SoundBuffer laserBuffer;
+	if (!laserBuffer.loadFromFile("Laser.wav")) {
+		cout << "Failed to load laser sound" << endl;
+	}
+	Sound laserSound(laserBuffer);
+
+	SoundBuffer explosionBuffer;
+	if (!explosionBuffer.loadFromFile("Explosion.wav")) {
+		cout << "Failed to load explosion sound" << endl;
+	}
+	Sound explosionSound(explosionBuffer);
+	explosionSound.setVolume(200);
+
+	SoundBuffer shipExplosionBuffer;
+	if (!shipExplosionBuffer.loadFromFile("ShipExplosion.wav")) {
+		cout << "Failed to load ship explosion sound" << endl;
+	}
+	Sound shipExplosionSound(shipExplosionBuffer);
 
 	Font font;
 	if (!font.loadFromFile("Ethnocentric.otf")) {
@@ -451,16 +488,6 @@ int main()
 	sub.setFillColor(sf::Color::White);
 	sub.setPosition(425, 400);
 
-	while (true) {
-		if (Mouse::isButtonPressed(Mouse::Left)) {
-			break;
-		}
-		window.clear();
-		window.draw(title);
-		window.draw(sub);
-		window.display();
-	}
-
 	PhysicsCircle shipBox;
 	Texture tex;
 	if (!tex.loadFromFile("SpaceShip.png")) {
@@ -474,7 +501,7 @@ int main()
 	ship.setScale(Vector2f(.5, .5));
 	ship.setPosition(Vector2f(shipBox.getCenter().x + 50, shipBox.getCenter().y + 50));
 
-	world.AddPhysicsBody(shipBox);
+	//world.AddPhysicsBody(shipBox);
 
 	Texture laserTex;
 	if (!laserTex.loadFromFile("LaserBeam.png")) {
@@ -486,11 +513,6 @@ int main()
 	if (!asteroidTex.loadFromFile("Asteroid.png")) {
 		cout << "Failed to load asteroid texture" << endl;
 	}
-	random_device rd;
-	default_random_engine gen(rd());
-	//asteroidList.insertNode(&asteroidTex, gen, &world);
-
-	
 
 	Text scoreText;
 	scoreText.setFont(font);
@@ -513,7 +535,8 @@ int main()
 		livesSprite1[i].setPosition(20 + i * 40, 45);
 	}
 
-	shipBox.onCollision = [&numLives, &livesSprite1, &shipBox, &world, &asteroidList, &play, &laserList, &ship, &window](PhysicsBodyCollisionResult result) {
+	shipBox.onCollision = [&numLives, &livesSprite1, &shipBox, &world, &asteroidList, &play, &laserList, &ship, &window, &shipExplosionSound](PhysicsBodyCollisionResult result) {
+		shipExplosionSound.play();
 		numLives--;
 		laserList->clearList(world);
 		cout << "Ship hit! Lives remaining: " << numLives << endl;
@@ -535,7 +558,51 @@ int main()
 		}
 	};
 
+	Time startTime = clock.getElapsedTime();
+	Time lTime = clock.getElapsedTime();
+	asteroidList.insertNode(&asteroidTex, &world);
 	while (true) {
+		Time currentTime(clock.getElapsedTime());
+		Time curTime = clock.getElapsedTime();
+		Time deltaTime = curTime - lTime;
+		int deltaTimeMS(deltaTime.asMilliseconds());
+		if (deltaTimeMS > 0) {
+			world.UpdatePhysics(deltaTimeMS);
+			lTime = curTime;
+		}
+		Event event;
+		while (window.pollEvent(event)) {
+			if (event.type == Event::Closed) {
+				window.close();
+				exit(0);
+			}
+		}
+		if (((currentTime - startTime).asMilliseconds() > 2000) && (asteroidList.getNumAsteroids() < 20)) {
+			cout << "Inserting asteroid" << endl;
+			startTime = currentTime;
+			asteroidList.insertNode(&asteroidTex, &world);
+		}
+		if (Mouse::isButtonPressed(Mouse::Left)) {
+			asteroidList.clearList(world);
+			break;
+		}
+
+		window.clear();
+		ANode* aCurrent = asteroidList.getHead();
+		while (aCurrent) {
+			window.draw(*(aCurrent->asteroidSprite));
+			aCurrent->asteroidSprite->setPosition(aCurrent->asteroidBox->getCenter());
+			wrapScreen(aCurrent->asteroidBox);
+			aCurrent = aCurrent->next;
+		}
+		window.draw(title);
+		window.draw(sub);
+		window.display();
+	}
+
+	world.AddPhysicsBody(shipBox);
+	bool running = true;
+	while (running) {
 		Time lastTime = clock.getElapsedTime();
 		Time lastFireTime = clock.getElapsedTime();
 		Time lastAsteroidTime = clock.getElapsedTime();
@@ -557,7 +624,7 @@ int main()
 			if (deltaTimeMS > 0) {
 				world.UpdatePhysics(deltaTimeMS);
 				lastTime = currentTime;
-				DoInput(shipBox, &laserTex, &fireCoolDown, &world, laserList, &asteroidList, &score, &numLives);
+				DoInput(shipBox, &laserTex, &fireCoolDown, &world, laserList, &asteroidList, &score, &numLives, laserSound, explosionSound);
 				wrapScreen(&shipBox);
 				ship.setPosition(Vector2f(shipBox.getCenter().x + 50, shipBox.getCenter().y + 50));
 				ship.setRotation(shipBox.getRotation());
@@ -600,10 +667,19 @@ int main()
 		}
 		bool newHighScore = false;
 		while (true) {
+			background.stop();
+			Time currentTime(clock.getElapsedTime());
+			Time deltaTime = currentTime - lastTime;
+			int deltaTimeMS(deltaTime.asMilliseconds());
+			if (deltaTimeMS > 0) {
+				world.UpdatePhysics(deltaTimeMS);
+				lastTime = currentTime;
+			}
+
 			Text gameOver;
 			gameOver.setFont(font);
 			gameOver.setString("Game Over!");
-			gameOver.setCharacterSize(50);      // pixels
+			gameOver.setCharacterSize(50);      
 			gameOver.setFillColor(sf::Color::White);
 			gameOver.setPosition(275, 300);
 			window.clear();
@@ -611,26 +687,26 @@ int main()
 			Text finalScore;
 			finalScore.setFont(font);
 			finalScore.setString("Final Score: " + to_string(score));
-			finalScore.setCharacterSize(30);      // pixels
+			finalScore.setCharacterSize(30);      
 			finalScore.setFillColor(sf::Color::White);
 			finalScore.setPosition(345, 350);
 
 			Text input;
 			input.setFont(font);
 			input.setString("(Press ESC to Exit or Click to Play Again)");
-			input.setCharacterSize(15);      // pixels
+			input.setCharacterSize(15);      
 			input.setFillColor(sf::Color::White);
 			input.setPosition(250, 750);
 
 			Text NewHighScoreDisplay;
 			NewHighScoreDisplay.setFont(font);
-			NewHighScoreDisplay.setCharacterSize(30);      // pixels
+			NewHighScoreDisplay.setCharacterSize(30);      
 			NewHighScoreDisplay.setFillColor(sf::Color::White);
 			NewHighScoreDisplay.setPosition(300, 350);
 
 			Text highScoreText;
 			highScoreText.setFont(font);
-			highScoreText.setCharacterSize(20);      // pixels
+			highScoreText.setCharacterSize(20);      
 			highScoreText.setFillColor(sf::Color::White);
 			highScoreText.setPosition(400, 385);
 			highScoreText.setString("High Score: " + to_string(highscore));
@@ -638,6 +714,8 @@ int main()
 			ANode* aCurrent = asteroidList.getHead();
 			while (aCurrent) {
 				window.draw(*(aCurrent->asteroidSprite));
+				aCurrent->asteroidSprite->setPosition(aCurrent->asteroidBox->getCenter());
+				wrapScreen(aCurrent->asteroidBox);
 				aCurrent = aCurrent->next;
 			}
 			if (score > highscore) {
@@ -658,9 +736,12 @@ int main()
 			window.draw(input);
 			window.display();
 			if (Keyboard::isKeyPressed(Keyboard::Escape)) {
-				exit(0);
+				window.close();
+				running = false;
+				break;
 			}
 			if (Mouse::isButtonPressed(Mouse::Left)) {
+				background.play();
 				cout << "Restarting game..." << endl;
 				numLives = NUMLIVES;
 				score = 0;
