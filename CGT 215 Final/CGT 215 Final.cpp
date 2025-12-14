@@ -17,6 +17,7 @@
 #define	ASPAWNYMAX 850
 #define ASPEED .05f
 #define AUTOSTOP 1.0f
+#define NUMLIVES 3
 
 constexpr auto PI = (3.141592653589793238462643383279502884);
 
@@ -308,7 +309,7 @@ class Laser {
 };
 
 void DoInput(PhysicsCircle& ship, Texture *laserTex,
-			 bool *fireCoolDown, World *world, Laser *laserList, Asteroid *aList) {
+			 bool *fireCoolDown, World *world, Laser *laserList, Asteroid *aList, int *score, int *numLives) {
 	float angle = ship.getRotation();
 	float dirX(cosf((angle - 90) * (PI / 180)));
 	float dirY(sinf((angle - 90) * (PI / 180)));
@@ -346,7 +347,7 @@ void DoInput(PhysicsCircle& ship, Texture *laserTex,
 		laserSprite->setPosition(laserBox->getCenter());
 		world->AddPhysicsBody(*laserBox);
 		LaserNode *node = laserList->insertNode(laserBox, laserSprite);
-		laserBox->onCollision = [aList, world, laserBox, laserSprite, laserList, node](PhysicsBodyCollisionResult result) {
+		laserBox->onCollision = [aList, world, laserBox, laserSprite, laserList, node, score, numLives](PhysicsBodyCollisionResult result) {
 			world->RemovePhysicsBody(*laserBox);
 			LaserNode* current = laserList->getHead();
 			while (current) {
@@ -357,6 +358,7 @@ void DoInput(PhysicsCircle& ship, Texture *laserTex,
 				}
 				current = current->next;
 			}
+
 			ANode* aCurrent = aList->getHead();
 			cout << "Collision detected!" << endl;
 			while (aCurrent) {
@@ -365,12 +367,21 @@ void DoInput(PhysicsCircle& ship, Texture *laserTex,
 					cout << "Asteroid hit!" << endl;
 					//world->RemovePhysicsBody(*(aCurrent->asteroidBox));
 					//aList->deleteNode(aCurrent);
+					if (aCurrent->size == 3) {
+						*score += 20;
+					}
+					else if (aCurrent->size == 2) {
+						*score += 50;
+					}
+					else {
+						*score += 100;
+					}
 					aList->breakAsteroid(aCurrent, world);
 					break;
 				}
 				aCurrent = aCurrent->next;
 			}
-			
+			cout << "Score: " << *score << endl;
 		};
 	}
 }
@@ -393,6 +404,8 @@ void wrapScreen(T* obj) {
 
 int main()
 {
+	int numLives = NUMLIVES;
+	int score = 0;
 	RenderWindow window(VideoMode(1000, 800), "CGT 215 Final Project");
 	World world(Vector2f(0, 0));
 	PhysicsCircle shipBox;
@@ -424,6 +437,50 @@ int main()
 	default_random_engine gen(rd());
 	//asteroidList.insertNode(&asteroidTex, gen, &world);
 
+	Font font;
+	if (!font.loadFromFile("Ethnocentric.otf")) {
+		cout << "Failed to load font" << endl;
+	}
+	Text title;
+	title.setFont(font);
+	title.setString("C++ Asteroids!");
+	title.setCharacterSize(50);      // pixels
+	title.setFillColor(sf::Color::White);
+	title.setPosition(250, 300);
+	Text sub;
+	sub.setFont(font);
+	sub.setString("(Click to Start)");
+	sub.setCharacterSize(15);      // pixels
+	sub.setFillColor(sf::Color::White);
+	sub.setPosition(425, 400);
+
+	while (true) {
+		if (Mouse::isButtonPressed(Mouse::Left)) {
+			break;
+		}
+		window.clear();
+		window.draw(title);
+		window.draw(sub);
+		window.display();
+	}
+
+	Text scoreText;
+	scoreText.setFont(font);
+	scoreText.setCharacterSize(20);      // pixels
+	scoreText.setFillColor(sf::Color::White);
+	scoreText.setPosition(20, 10);
+
+	Sprite livesSprite1[3];
+	for (auto& livesSprite : livesSprite1) {
+		livesSprite.setTexture(tex);
+	}
+	for (int i = 0; i < numLives; i++) {
+		livesSprite1[i].setScale(.4, .4);
+		livesSprite1[i].setPosition(20 + i * 40, 45);
+	}
+
+
+
 	Clock clock;
 	Time lastTime = clock.getElapsedTime();
 	Time lastFireTime = clock.getElapsedTime();
@@ -439,11 +496,12 @@ int main()
 		if (deltaTimeMS > 0) {
 			world.UpdatePhysics(deltaTimeMS);
 			lastTime = currentTime;
-			DoInput(shipBox, &laserTex, &fireCoolDown, &world, laserList, &asteroidList);
+			DoInput(shipBox, &laserTex, &fireCoolDown, &world, laserList, &asteroidList, &score, &numLives);
 			wrapScreen(&shipBox);
 			ship.setPosition(Vector2f(shipBox.getCenter().x + 50, shipBox.getCenter().y + 50));
 			ship.setRotation(shipBox.getRotation());
 			asteroidList.checkSpeed();
+			scoreText.setString("Score: " + to_string(score));
 		}
 		if (fireDeltaTime >= 500) {
 			lastFireTime = currentTime;
@@ -470,6 +528,10 @@ int main()
 			aCurrent = aCurrent->next;
 		}
 		window.draw(ship);
+		window.draw(scoreText);
+		for (auto& livesSprite : livesSprite1) {
+			window.draw(livesSprite);
+		}
 		world.VisualizeAllBounds(window);
 		window.display();
 	}
