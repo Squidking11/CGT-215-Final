@@ -7,6 +7,7 @@
 #include <random>
 #include <SFML/Audio.hpp>
 
+// Constants for game settings
 #define LIFESPANMS 5000
 #define LASER_SPEED 0.3f
 #define SHIP_SPEED 0.0001f
@@ -384,7 +385,6 @@ class Laser {
 					delete toDelete->laserBox;
 					delete toDelete->laserSprite;
 					delete toDelete;
-					cout << "deleted laser" << endl;
 				}
 				else {
 					prev = temp;
@@ -411,9 +411,12 @@ class Laser {
  * Handles user input for ship movement and firing lasers
  */
 void DoInput(PhysicsCircle& ship, Texture *laserTex, bool *fireCoolDown, World *world, Laser *laserList, Asteroid *aList, int *score, Sound &laserSound, Sound &explosionSound) {
+	// Calculates x and y directions for the vectors used for ship movement and laser firing
 	float angle = ship.getRotation();
 	float dirX(cosf((angle - 90) * (PI / 180)));
 	float dirY(sinf((angle - 90) * (PI / 180)));
+	
+	// Ship rotation and movement controls
 	if (Keyboard::isKeyPressed(Keyboard::D)) {
 
 		ship.rotate(.1);
@@ -427,6 +430,8 @@ void DoInput(PhysicsCircle& ship, Texture *laserTex, bool *fireCoolDown, World *
 	if (Keyboard::isKeyPressed(Keyboard::S)) {
 		ship.applyImpulse(-(Vector2f(dirX, dirY) * SHIP_SPEED));
 	}
+	
+	// Auto-stop functionality when no movement keys are pressed
 	if (!Keyboard::isKeyPressed(Keyboard::W) && !Keyboard::isKeyPressed(Keyboard::S)) {
 		Vector2f vel = ship.getVelocity();
 		float mag = sqrt(vel.x * vel.x + vel.y * vel.y);
@@ -435,6 +440,8 @@ void DoInput(PhysicsCircle& ship, Texture *laserTex, bool *fireCoolDown, World *
 			ship.applyImpulse(-dir * SHIP_SPEED * AUTOSTOP);
 		}
 	}
+
+	// Handles firing lasers and the collisions for those lasers
 	bool isPressed = Keyboard::isKeyPressed(Keyboard::Space);
 	if (*fireCoolDown && isPressed) {
 		laserSound.play();
@@ -450,30 +457,26 @@ void DoInput(PhysicsCircle& ship, Texture *laserTex, bool *fireCoolDown, World *
 		laserSprite->setPosition(laserBox->getCenter());
 		world->AddPhysicsBody(*laserBox);
 		LaserNode *node = laserList->insertNode(laserBox, laserSprite);
+
+		// Handles collisions for when the laser collides with another laser or an asteroid
 		laserBox->onCollision = [aList, world, laserBox, laserSprite, laserList, node, score, &ship, &explosionSound](PhysicsBodyCollisionResult result) {
 			if (result.object2 == ship) {
-				ship.setVelocity(Vector2f(0, 0));
+				ship.setVelocity(Vector2f(0, 0)); // Makes sure the ships velocity is 0 after being hit
 			}
 			world->RemovePhysicsBody(*laserBox);
 			LaserNode* current = laserList->getHead();
 			while (current) {
 				if (result.object1 == *(current->laserBox)) {
-					cout << "Laser hit!" << endl;
 					explosionSound.play();
-					//world->RemovePhysicsBody(*current->laserBox);
 					laserList->deleteNode(current);
 					break;
 				}
 				current = current->next;
 			}
-
 			ANode* aCurrent = aList->getHead();
-			cout << "Collision detected!" << endl;
 			while (aCurrent) {
-				cout << "Checking asteroid..." << endl;
 				if (result.object2 == *(aCurrent->asteroidBox)) {
 					explosionSound.play();
-					cout << "Asteroid hit!" << endl;
 					if (aCurrent->size == 3) {
 						*score += 20;
 					}
@@ -488,11 +491,13 @@ void DoInput(PhysicsCircle& ship, Texture *laserTex, bool *fireCoolDown, World *
 				}
 				aCurrent = aCurrent->next;
 			}
-			cout << "Score: " << *score << endl;
 		};
 	}
-}
+} /* DoInput() */
 
+/*
+ * Wraps objects around the screen edges to the opposite side
+ */
 template <typename T>
 void wrapScreen(T* obj) {
 	if (obj->getCenter().x < -50) {
@@ -507,7 +512,7 @@ void wrapScreen(T* obj) {
 	else if (obj->getCenter().y > 850) {
 		obj->setCenter(Vector2f(obj->getCenter().x, 0));
 	}
-}
+} /* wrapScreen() */
 
 int main()
 {
@@ -554,13 +559,13 @@ int main()
 	Text title;
 	title.setFont(font);
 	title.setString("C++ Asteroids!");
-	title.setCharacterSize(50);      // pixels
+	title.setCharacterSize(50);
 	title.setFillColor(sf::Color::White);
 	title.setPosition(250, 300);
 	Text sub;
 	sub.setFont(font);
 	sub.setString("(Click to Start)");
-	sub.setCharacterSize(15);      // pixels
+	sub.setCharacterSize(15);
 	sub.setFillColor(sf::Color::White);
 	sub.setPosition(425, 400);
 
@@ -577,8 +582,6 @@ int main()
 	ship.setScale(Vector2f(.5, .5));
 	ship.setPosition(Vector2f(shipBox.getCenter().x + 50, shipBox.getCenter().y + 50));
 
-	//world.AddPhysicsBody(shipBox);
-
 	Texture laserTex;
 	if (!laserTex.loadFromFile("LaserBeam.png")) {
 		cout << "Failed to load laser texture" << endl;
@@ -592,13 +595,13 @@ int main()
 
 	Text scoreText;
 	scoreText.setFont(font);
-	scoreText.setCharacterSize(20);      // pixels
+	scoreText.setCharacterSize(20);
 	scoreText.setFillColor(sf::Color::White);
 	scoreText.setPosition(20, 10);
 
 	Text highScoreText;
 	highScoreText.setFont(font);
-	highScoreText.setCharacterSize(20);      // pixels
+	highScoreText.setCharacterSize(20);
 	highScoreText.setFillColor(sf::Color::White);
 	highScoreText.setPosition(400, 10);
 
@@ -611,16 +614,20 @@ int main()
 		livesSprite1[i].setPosition(20 + i * 40, 45);
 	}
 
-	shipBox.onCollision = [&numLives, &livesSprite1, &shipBox, &world, &asteroidList, &play, &laserList, &ship, &window, &shipExplosionSound](PhysicsBodyCollisionResult result) {
+	/*
+	 * Handles collisions for when the ship collides with an asteroid or laser
+	 * Updates lives and resets ship position accordingly
+	 * If out of lives updates boolean to end the game
+	 * Removes all lasers from the world
+	 */
+	shipBox.onCollision = [&numLives, &shipBox, &world, &asteroidList, &play, &laserList, &shipExplosionSound](PhysicsBodyCollisionResult result) {
 		shipExplosionSound.play();
 		numLives--;
 		laserList->clearList(world);
-		cout << "Ship hit! Lives remaining: " << numLives << endl;
 		shipBox.setCenter(Vector2f(500, 400));
 		shipBox.setRotation(0);
 		shipBox.setVelocity(Vector2f(0, 0));
 		if (numLives <= 0) {
-			cout << "Game Over!" << endl;
 			play = false;
 		}
 		ANode* aCurrent = asteroidList.getHead();
@@ -637,6 +644,10 @@ int main()
 	Time startTime = clock.getElapsedTime();
 	Time lTime = clock.getElapsedTime();
 	asteroidList.insertNode(&asteroidTex, &world);
+
+	/*
+	 * Handles the start screen and spawning background asteroids on startup screen
+	 */
 	while (true) {
 		Time currentTime(clock.getElapsedTime());
 		Time curTime = clock.getElapsedTime();
@@ -653,8 +664,9 @@ int main()
 				exit(0);
 			}
 		}
+
+		// Caps asteroid count on start screen to 20
 		if (((currentTime - startTime).asMilliseconds() > 2000) && (asteroidList.getNumAsteroids() < 20)) {
-			cout << "Inserting asteroid" << endl;
 			startTime = currentTime;
 			asteroidList.insertNode(&asteroidTex, &world);
 		}
@@ -678,11 +690,19 @@ int main()
 
 	world.AddPhysicsBody(shipBox);
 	bool running = true;
+
+	/*
+	 * Outer loop that allows for restarting the game after a game over
+	 */
 	while (running) {
 		Time lastTime = clock.getElapsedTime();
 		Time lastFireTime = clock.getElapsedTime();
 		Time lastAsteroidTime = clock.getElapsedTime();
 		bool fireCoolDown = true;
+
+		/*
+		 * Inner loop that handles the main gameplay loop during gameplay
+		 */
 		while (play) {
 			Event event;
 			while (window.pollEvent(event)) {
@@ -691,12 +711,15 @@ int main()
 					exit(0);
 				}
 			}
+			highScoreText.setString("High Score: " + to_string(highscore));
 			Time currentTime(clock.getElapsedTime());
 			Time deltaTime = currentTime - lastTime;
 			int deltaTimeMS(deltaTime.asMilliseconds());
 			laserList->updateLifespans(deltaTimeMS, &world);
 			int fireDeltaTime = (currentTime - lastFireTime).asMilliseconds();
 			int aDeltaTimeMS = (currentTime - lastAsteroidTime).asMilliseconds();
+
+			// Updates physics and game states every millisecond
 			if (deltaTimeMS > 0) {
 				world.UpdatePhysics(deltaTimeMS);
 				lastTime = currentTime;
@@ -706,18 +729,20 @@ int main()
 				ship.setRotation(shipBox.getRotation());
 				asteroidList.checkSpeed();
 				scoreText.setString("Score: " + to_string(score));
-				highScoreText.setString("High Score: " + to_string(highscore));
 			}
+			// Fire rate control
 			if (fireDeltaTime >= 500) {
 				lastFireTime = currentTime;
 				fireCoolDown = true;
 			}
+			// Asteroid spawn rate
 			if (aDeltaTimeMS >= 2000) {
 				lastAsteroidTime = currentTime;
 				asteroidList.insertNode(&asteroidTex, &world);
 			}
 
 			window.clear();
+			// While loops used to draw all lasers and asteroids from their respective linked lists and enable screen wrapping
 			LaserNode* current = laserList->getHead();
 			while (current) {
 				window.draw(*(current->laserSprite));
@@ -741,12 +766,17 @@ int main()
 			//world.VisualizeAllBounds(window);
 			window.display();
 		}
+
+		/*
+		 * After game over displays the game over screen and handles input for restarting or exiting the game
+		 */
 		bool newHighScore = false;
 		while (true) {
 			background.stop();
 			Time currentTime(clock.getElapsedTime());
 			Time deltaTime = currentTime - lastTime;
 			int deltaTimeMS(deltaTime.asMilliseconds());
+			// Allows asteroids to continue moving on game over screen
 			if (deltaTimeMS > 0) {
 				world.UpdatePhysics(deltaTimeMS);
 				lastTime = currentTime;
@@ -787,6 +817,7 @@ int main()
 			highScoreText.setPosition(400, 385);
 			highScoreText.setString("High Score: " + to_string(highscore));
 
+			// Allows asteroids to continue moving on game over screen
 			ANode* aCurrent = asteroidList.getHead();
 			while (aCurrent) {
 				window.draw(*(aCurrent->asteroidSprite));
@@ -794,11 +825,11 @@ int main()
 				wrapScreen(aCurrent->asteroidBox);
 				aCurrent = aCurrent->next;
 			}
+			// If a new high score is achieved updates the high score and displays appropriate message
 			if (score > highscore) {
 				newHighScore = true;
 			}
 			if (newHighScore) {
-				cout << "New High Score!" << endl;
 				highscore = score;
 				NewHighScoreDisplay.setString("New High Score: " + to_string(highscore));
 				window.draw(NewHighScoreDisplay);
@@ -811,6 +842,7 @@ int main()
 			window.draw(gameOver);
 			window.draw(input);
 			window.display();
+			// Input handling for exiting or restarting the game
 			if (Keyboard::isKeyPressed(Keyboard::Escape)) {
 				window.close();
 				running = false;
@@ -818,7 +850,6 @@ int main()
 			}
 			if (Mouse::isButtonPressed(Mouse::Left)) {
 				background.play();
-				cout << "Restarting game..." << endl;
 				numLives = NUMLIVES;
 				score = 0;
 				shipBox.setCenter(Vector2f(500, 400));
