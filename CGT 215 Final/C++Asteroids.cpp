@@ -521,7 +521,7 @@ int main()
 	int score = 0;
 	int highscore = 0;
 	bool play = true;
-	RenderWindow window(VideoMode(1000, 800), "CGT 215 Final Project");
+	RenderWindow window(VideoMode(1000, 800), "C++ Asteroids");
 	World world(Vector2f(0, 0));
 	random_device rd;
 	default_random_engine gen(rd());
