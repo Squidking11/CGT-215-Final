@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="CGT 215 Final.cpp">
+    <ClCompile Include="C++Asteroids.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

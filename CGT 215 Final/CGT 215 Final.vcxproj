@@ -26,6 +26,7 @@
     <ProjectGuid>{aabf0be3-c1d3-47ae-9456-b334d8606276}</ProjectGuid>
     <RootNamespace>CGT215Final</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>C++Asteroids</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -125,7 +126,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="CGT 215 Final.cpp" />
+    <ClCompile Include="C++Asteroids.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
